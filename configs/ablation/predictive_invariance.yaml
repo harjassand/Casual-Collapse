@@ -1,0 +1,9 @@
+name: predictive_invariance
+overrides:
+  - loss.beta=0.0
+  - loss.lambda=1.0
+  - loss.use_rex=true
+  - loss.use_irm=false
+  - loss.mu=0.0
+  - loss.modularity=none
+  - policy=random

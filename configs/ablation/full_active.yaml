@@ -1,0 +1,9 @@
+name: full_active
+overrides:
+  - loss.beta=1.0
+  - loss.lambda=1.0
+  - loss.use_rex=true
+  - loss.use_irm=false
+  - loss.mu=0.1
+  - loss.modularity=total_correlation
+  - policy=active

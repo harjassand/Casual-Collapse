@@ -1,0 +1,17 @@
+defaults:
+  - env: hmm
+  - model: hmm
+  - train: default
+  - loss: default
+  - policy: random
+  - eval: default
+  - operator: default
+  - _self_
+
+seed: 123
+
+hydra:
+  run:
+    dir: .
+  sweep:
+    dir: .

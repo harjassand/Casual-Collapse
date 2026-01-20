@@ -1,0 +1,8 @@
+type: hmm
+num_states: 4
+num_actions: 2
+obs_dim: 6
+spurious_noise: 0.1
+transition_noise: 0.05
+train_env_ids: [0, 2]
+test_env_ids: [1, 3]

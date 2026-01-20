@@ -1,0 +1,17 @@
+num_steps: 2000
+batch_size: 64
+lr: 1e-3
+buffer_size: 5000
+horizon: 3
+log_interval: 50
+checkpoint_interval: 500
+run_dir: runs/default
+operator_interval: 200
+perplexity_threshold: 2.0
+active_code_threshold: 0.01
+stats_max_per_code: 256
+num_future_classes: 4
+pred_plateau_window: 50
+pred_plateau_threshold: 1e-4
+degenerate_entropy_threshold: 0.1
+degenerate_pred_threshold: 0.5

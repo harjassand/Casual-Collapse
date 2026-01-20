@@ -1,0 +1,4 @@
+delta_merge: 0.05
+delta_merge_inv: 0.05
+delta_split: 0.7
+eps_split_gain: 0.01

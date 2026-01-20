@@ -1,0 +1,8 @@
+type: object
+num_objects: 3
+obs_mode: structured
+image_size: 32
+spurious_noise: 0.1
+dt: 0.1
+train_env_ids: [0, 2]
+test_env_ids: [1, 3]

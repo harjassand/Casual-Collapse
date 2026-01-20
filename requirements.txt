@@ -1,0 +1,9 @@
+numpy
+torch
+hydra-core
+omegaconf
+scikit-learn
+tensorboard
+matplotlib
+pillow
+pyyaml

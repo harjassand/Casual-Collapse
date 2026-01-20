@@ -1,0 +1,9 @@
+name: predictive_ib
+overrides:
+  - loss.beta=1.0
+  - loss.lambda=0.0
+  - loss.mu=0.0
+  - loss.use_rex=false
+  - loss.use_irm=false
+  - loss.modularity=none
+  - policy=random
