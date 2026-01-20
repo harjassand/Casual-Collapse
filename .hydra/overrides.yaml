@@ -1,0 +1,5 @@
+- env=mechanism
+- model=mechanism
+- eval.ckpt_path=runs/self_check_mechanism/checkpoint.pt
+- eval.output_path=runs/self_check_mechanism/eval_metrics.json
+- eval.steps=30

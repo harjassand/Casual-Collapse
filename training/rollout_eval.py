@@ -1,6 +1,11 @@
 import json
 import os
+import sys
 from typing import Any, Dict, List
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 import hydra
 import numpy as np

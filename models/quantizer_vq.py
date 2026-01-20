@@ -41,20 +41,23 @@ class VectorQuantizer(nn.Module):
         )
         indices = torch.argmin(distances, dim=1)
         quantized = self.codebook[indices].view(b, k, d)
+        if self.use_ema:
+            quantized = quantized.detach()
 
         codebook_loss = ((quantized.detach() - z) ** 2).mean()
         commitment_loss = ((quantized - z.detach()) ** 2).mean()
         loss = codebook_loss + self.commitment_weight * commitment_loss
 
         if self.use_ema and self.training:
-            one_hot = torch.nn.functional.one_hot(indices, self.num_codes).float()
-            counts = one_hot.sum(dim=0)
-            self.ema_counts = self.ema_counts * self.decay + counts * (1 - self.decay)
-            dw = one_hot.t() @ flat
-            self.ema_means = self.ema_means * self.decay + dw * (1 - self.decay)
-            n = self.ema_counts.sum()
-            weights = (self.ema_counts + self.eps) / (n + self.num_codes * self.eps)
-            self.codebook.copy_(self.ema_means / weights.unsqueeze(1))
+            with torch.no_grad():
+                one_hot = torch.nn.functional.one_hot(indices, self.num_codes).float()
+                counts = one_hot.sum(dim=0)
+                self.ema_counts = self.ema_counts * self.decay + counts * (1 - self.decay)
+                dw = one_hot.t() @ flat
+                self.ema_means = self.ema_means * self.decay + dw * (1 - self.decay)
+                n = self.ema_counts.sum()
+                weights = (self.ema_counts + self.eps) / (n + self.num_codes * self.eps)
+                self.codebook.copy_(self.ema_means / weights.unsqueeze(1))
 
         quantized_st = z + (quantized - z).detach()
 

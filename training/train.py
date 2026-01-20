@@ -1,7 +1,12 @@
 import copy
 import json
 import os
+import sys
 from typing import Any, Dict, List, Optional
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 import hydra
 import numpy as np
@@ -169,7 +174,7 @@ def main(cfg: DictConfig) -> None:
     logger = RunLogger(cfg_dict["train"]["run_dir"])
     os.makedirs(cfg_dict["train"]["run_dir"], exist_ok=True)
     with open(os.path.join(cfg_dict["train"]["run_dir"], "config.json"), "w", encoding="utf-8") as f:
-        f.write(OmegaConf.to_json(cfg))
+        json.dump(cfg_dict, f, indent=2)
     config_snapshot_path = os.path.join(cfg_dict["train"]["run_dir"], "config_snapshot.yaml")
     OmegaConf.save(cfg, config_snapshot_path)
     operator_events: List[Dict[str, Any]] = []

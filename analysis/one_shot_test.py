@@ -1,11 +1,17 @@
 import argparse
 import json
+import os
+import sys
 from typing import Any, Dict
 
 import numpy as np
 import torch
 
-from envs import MechanismShiftEnv
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+from envs import HMMCausalEnv, MechanismShiftEnv, ObjectMicroWorldEnv
 from models.causal_collapse_model import CausalCollapseModel
 
 
@@ -13,6 +19,55 @@ def format_obs(obs: np.ndarray) -> np.ndarray:
     if obs.ndim == 1:
         return obs[None, :]
     return obs
+
+
+def make_env(cfg: Dict[str, Any]):
+    env_type = cfg["type"]
+    if env_type == "hmm":
+        return HMMCausalEnv(
+            num_states=cfg["num_states"],
+            num_actions=cfg["num_actions"],
+            obs_dim=cfg["obs_dim"],
+            spurious_noise=cfg["spurious_noise"],
+            transition_noise=cfg["transition_noise"],
+            spurious_flip_on_odd=cfg.get("spurious_flip_on_odd", True),
+        )
+    if env_type == "object":
+        return ObjectMicroWorldEnv(
+            num_objects=cfg["num_objects"],
+            obs_mode=cfg["obs_mode"],
+            image_size=cfg["image_size"],
+            spurious_noise=cfg["spurious_noise"],
+            dt=cfg["dt"],
+            spurious_flip_on_odd=cfg.get("spurious_flip_on_odd", True),
+        )
+    if env_type == "mechanism":
+        return MechanismShiftEnv(
+            elasticity_env0=cfg["elasticity_env0"],
+            elasticity_env1=cfg["elasticity_env1"],
+            dt=cfg["dt"],
+        )
+    raise ValueError(f"Unknown env type {env_type}")
+
+
+def one_shot_spec(env_type: str) -> Dict[str, Any]:
+    if env_type == "hmm":
+        return {
+            "spec": {"set_latent": 0, "duration": 1},
+            "targeted_mechanism": "latent_transition",
+            "expected_change": "latent clamp changes immediate future observations",
+        }
+    if env_type == "object":
+        return {
+            "spec": {"set_vel": {"obj": 0, "value": [0.6, 0.0]}, "duration": 1},
+            "targeted_mechanism": "object_velocity",
+            "expected_change": "velocity intervention shifts next-step position",
+        }
+    return {
+        "spec": {"set_vel": {"obj": 0, "value": 1.0}, "duration": 1},
+        "targeted_mechanism": "collision_elasticity",
+        "expected_change": "velocity intervention reveals collision elasticity via altered post-collision velocities",
+    }
 
 
 def main() -> None:
@@ -32,17 +87,13 @@ def main() -> None:
     model.eval()
 
     env_cfg: Dict[str, Any] = cfg["env"]
-    env = MechanismShiftEnv(
-        elasticity_env0=env_cfg.get("elasticity_env0", 0.9),
-        elasticity_env1=env_cfg.get("elasticity_env1", 0.2),
-        dt=env_cfg.get("dt", 0.1),
-    )
+    env = make_env(env_cfg)
 
     env_id = env_cfg["test_env_ids"][0]
     obs = format_obs(env.reset(seed=cfg["seed"], env_id=env_id))
 
-    # One-shot intervention: set velocity of object 0 to high magnitude
-    env.do_intervention({"set_vel": {"obj": 0, "value": 1.0}, "duration": 1})
+    shot = one_shot_spec(env_cfg["type"])
+    env.do_intervention(shot["spec"])
     next_obs, _, _, _ = env.step(None)
     next_obs = format_obs(next_obs)
 
@@ -73,11 +124,12 @@ def main() -> None:
         pred_after = pred.cpu().numpy().tolist()
 
     result = {
-        "intervention": {"set_vel": {"obj": 0, "value": 1.0}},
-        "targeted_mechanism": "collision_elasticity",
-        "expected_change": "velocity intervention reveals collision elasticity via altered post-collision velocities",
+        "intervention": shot["spec"],
+        "targeted_mechanism": shot["targeted_mechanism"],
+        "expected_change": shot["expected_change"],
         "seed": int(cfg["seed"]),
         "env_id": int(env_id),
+        "env_type": env_cfg["type"],
         "loss_before": loss_before,
         "loss_after": loss_after,
         "loss_delta": loss_before - loss_after,
@@ -86,6 +138,7 @@ def main() -> None:
         "true_next": next_obs.tolist(),
     }
 
+    os.makedirs(os.path.dirname(args.output_path) or ".", exist_ok=True)
     with open(args.output_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
 

@@ -1,10 +1,16 @@
 import argparse
 import json
+import os
+import sys
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import torch
 from sklearn.cluster import AgglomerativeClustering
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from envs import HMMCausalEnv, MechanismShiftEnv, ObjectMicroWorldEnv
 from models.causal_collapse_model import CausalCollapseModel

@@ -1,9 +1,14 @@
 import argparse
 import json
 import os
+import sys
 from typing import Dict, List, Tuple
 
 import numpy as np
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 
 def load_last_metric(path: str, key: str) -> float:

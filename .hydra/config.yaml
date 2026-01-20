@@ -1,0 +1,87 @@
+env:
+  type: mechanism
+  elasticity_env0: 0.9
+  elasticity_env1: 0.2
+  dt: 0.1
+  train_env_ids:
+  - 0
+  - 2
+  test_env_ids:
+  - 1
+  - 3
+  interventions:
+  - set_vel:
+      obj: 0
+      value: 0.8
+    duration: 1
+model:
+  input_type: structured
+  obs_dim: 4
+  num_slots: 1
+  slot_dim: 16
+  num_codes: 8
+  use_quantizer: true
+  commitment_weight: 0.25
+  vq_decay: 0.99
+  vq_use_ema: true
+  use_graph: false
+  use_residual: true
+  residual_dim: 16
+  action_dim: 2
+  dyn_hidden: 128
+  recon: false
+  use_logic: false
+  logic_predicates: []
+  logic_constraints: []
+train:
+  num_steps: 2000
+  batch_size: 64
+  lr: 0.001
+  buffer_size: 5000
+  horizon: 3
+  log_interval: 50
+  checkpoint_interval: 500
+  run_dir: runs/default
+  operator_interval: 200
+  perplexity_threshold: 2.0
+  active_code_threshold: 0.01
+  stats_max_per_code: 256
+  num_future_classes: 4
+  pred_plateau_window: 50
+  pred_plateau_threshold: 0.0001
+  degenerate_entropy_threshold: 0.1
+  degenerate_pred_threshold: 0.5
+  enable_operator: true
+loss:
+  beta: 1.0
+  gamma: 1.0
+  lambda: 1.0
+  mu: 0.1
+  nu: 0.0
+  use_rex: true
+  use_irm: false
+  modularity: none
+policy:
+  type: random
+  action_scale: 0.1
+  ensemble_size: 1
+eval:
+  ckpt_path: runs/self_check_mechanism/checkpoint.pt
+  output_path: runs/self_check_mechanism/eval_metrics.json
+  steps: 30
+  active_code_threshold: 0.01
+  save_rollouts: false
+  rollouts_path: runs/default/rollouts.npz
+  eval_seed: 123
+  interventions: []
+  alignment_samples: 200
+  alignment_rollouts: 20
+  alignment_clusters: 4
+  alignment_seed: 123
+  one_shot_lr: 0.01
+operator:
+  delta_merge: 0.05
+  delta_merge_inv: 0.05
+  delta_split: 0.7
+  eps_split_gain: 0.01
+seed: 123

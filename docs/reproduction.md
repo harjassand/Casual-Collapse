@@ -23,7 +23,7 @@ python3 smoke_test.py
 ## Self-check (full end-to-end)
 
 ```
-python3 tools/self_check.py
+python3 self_check.py
 ```
 
 ## Spurious correlation checks
@@ -45,7 +45,7 @@ This writes `config_snapshot.yaml`, `train_metrics.json`, `code_usage.json`, and
 ## Train (Object micro-world)
 
 ```
-python3 training/train.py env=object model=default train.run_dir=runs/object_baseline train.num_future_classes=2
+python3 training/train.py env=object model=object train.run_dir=runs/object_baseline train.num_future_classes=2
 ```
 
 ## Train (Mechanism shift)
@@ -63,7 +63,7 @@ python3 training/train.py env=hmm model=hmm loss.use_rex=true loss.lambda=1.0 lo
 ## Active interventions (information-gain policy)
 
 ```
-python3 training/train.py env=object model=default policy=active train.run_dir=runs/object_active train.num_future_classes=2
+python3 training/train.py env=object model=object policy=active train.run_dir=runs/object_active train.num_future_classes=2
 ```
 
 ## Evaluate a checkpoint
@@ -113,5 +113,5 @@ This produces `runs/ablations/ablation_matrix.json` via `analysis/ablation_matri
 ## Validate a run directory
 
 ```
-python3 tools/validate_run_dir.py runs/hmm_baseline
+python3 validate_run_dir.py runs/hmm_baseline
 ```
