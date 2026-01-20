@@ -28,8 +28,10 @@ def main() -> None:
         ]
         subprocess.run(cmd, check=True)
         config_path = os.path.join(run_dir, "config.json")
-        ckpt_path = None
-        if os.path.exists(config_path):
+        ckpt_path = os.path.join(run_dir, "checkpoint.pt")
+        if not os.path.exists(ckpt_path):
+            ckpt_path = None
+        if ckpt_path is None and os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
             num_steps = int(cfg["train"]["num_steps"])

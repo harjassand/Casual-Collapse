@@ -157,6 +157,8 @@ def main() -> None:
     unique_clusters, cluster_counts = np.unique(cluster_labels, return_counts=True)
     unique_codes, code_counts = np.unique(np.array(codes), return_counts=True)
     out = {
+        "ARI": scores["ari"],
+        "NMI": scores["nmi"],
         "ari": scores["ari"],
         "nmi": scores["nmi"],
         "purity": purity,
@@ -170,6 +172,8 @@ def main() -> None:
         "env_id": int(env_id),
         "seed": int(cfg["eval"].get("alignment_seed", cfg["seed"])),
         "future_summary": "future_label",
+        "clustering_method": "agglomerative",
+        "distance_metric": "js_divergence",
     }
 
     with open(args.output_path, "w", encoding="utf-8") as f:

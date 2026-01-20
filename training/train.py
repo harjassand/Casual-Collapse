@@ -434,6 +434,9 @@ def main(cfg: DictConfig) -> None:
                 records.append(json.loads(line))
         with open(train_metrics_path, "w", encoding="utf-8") as f:
             json.dump(records, f, indent=2)
+    else:
+        with open(train_metrics_path, "w", encoding="utf-8") as f:
+            json.dump([], f, indent=2)
 
     if last_usage is not None:
         code_usage_path = os.path.join(cfg_dict["train"]["run_dir"], "code_usage.json")
@@ -449,6 +452,9 @@ def main(cfg: DictConfig) -> None:
         operator_path = os.path.join(cfg_dict["train"]["run_dir"], "operator_events.json")
         with open(operator_path, "w", encoding="utf-8") as f:
             json.dump(operator_events, f, indent=2)
+
+    checkpoint_path = os.path.join(cfg_dict["train"]["run_dir"], "checkpoint.pt")
+    torch.save({"model": model.state_dict(), "cfg": cfg_dict}, checkpoint_path)
 
 
 if __name__ == "__main__":

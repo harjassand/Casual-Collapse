@@ -193,7 +193,13 @@ def main(cfg: DictConfig) -> None:
         )
         mse = float(np.mean((preds - trues) ** 2))
         interventional_scores.append(mse)
-        interventional_details.append({"spec": spec, "mse": mse, "env_id": int(env_cfg["test_env_ids"][0])})
+        interventional_details.append({
+            "spec": spec,
+            "mse": mse,
+            "env_id": int(env_cfg["test_env_ids"][0]),
+            "rollouts": int(cfg_dict["eval"]["steps"]),
+            "seed": int(cfg_dict["eval"]["eval_seed"]) + idx,
+        })
         rep_usage_deltas.extend(rep_delta)
         if cfg_dict["eval"]["save_rollouts"]:
             rollouts_dump["preds"].append(preds)
@@ -230,6 +236,39 @@ def main(cfg: DictConfig) -> None:
     metrics["eval/seed"] = int(cfg_dict["eval"]["eval_seed"])
     metrics["eval/steps"] = int(cfg_dict["eval"]["steps"])
     metrics["eval/horizon"] = int(cfg_dict["train"]["horizon"])
+
+    per_env_map = {}
+    for env_id in in_envs + ood_envs:
+        key = f"in/risk_env_{int(env_id)}"
+        if key in per_env_risks:
+            per_env_map[str(env_id)] = per_env_risks[key]
+        else:
+            key = f"ood/risk_env_{int(env_id)}"
+            if key in per_env_risks:
+                per_env_map[str(env_id)] = per_env_risks[key]
+
+    metrics["in_distribution"] = {"metric": "mse", "value": metrics.get("in/mse", None)}
+    metrics["ood"] = {"metric": "mse", "value": metrics.get("ood/mse", None)}
+    metrics["per_env_risks"] = per_env_map
+    metrics["risk_variance"] = metrics.get("invariance/risk_variance", None)
+    metrics["complexity"] = {
+        "perplexity": metrics.get("in/perplexity", None),
+        "active_codes": metrics.get("in/active_codes", None),
+        "entropy_or_proxy": metrics.get("in/entropy", None),
+    }
+    metrics["interventional"] = {
+        "metric": "mse",
+        "details": interventional_details,
+        "rollouts": int(cfg_dict["eval"]["steps"]),
+        "seed": int(cfg_dict["eval"]["eval_seed"]),
+    }
+    metrics["rep_usage_test"] = {"metric": "mse_delta", "value": metrics.get("stats/rep_usage_delta", None)}
+    metrics["rollout_counts"] = {
+        "steps": int(cfg_dict["eval"]["steps"]),
+        "horizon": int(cfg_dict["train"]["horizon"]),
+        "num_envs": int(len(in_envs) + len(ood_envs)),
+    }
+    metrics["seeds"] = {"eval_seed": int(cfg_dict["eval"]["eval_seed"])}
 
     out_path = cfg_dict["eval"]["output_path"]
     os.makedirs(os.path.dirname(out_path), exist_ok=True)

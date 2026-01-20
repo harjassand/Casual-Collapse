@@ -20,6 +20,16 @@ def main() -> None:
             cfg = json.load(f)
         with open(eval_path, "r", encoding="utf-8") as f:
             metrics = json.load(f)
+        alignment_path = os.path.join(run_dir, "alignment_metrics.json")
+        one_shot_path = os.path.join(run_dir, "one_shot_result.json")
+        alignment = {}
+        one_shot = {}
+        if os.path.exists(alignment_path):
+            with open(alignment_path, "r", encoding="utf-8") as f:
+                alignment = json.load(f)
+        if os.path.exists(one_shot_path):
+            with open(one_shot_path, "r", encoding="utf-8") as f:
+                one_shot = json.load(f)
         rows.append({
             "run": name,
             "beta": cfg["loss"]["beta"],
@@ -38,8 +48,13 @@ def main() -> None:
             "ood_perplexity": metrics.get("ood/perplexity", None),
             "in_active_codes": metrics.get("in/active_codes", None),
             "ood_active_codes": metrics.get("ood/active_codes", None),
-            "risk_variance": metrics.get("invariance/risk_variance", None),
+            "risk_variance": metrics.get("invariance/risk_variance", metrics.get("risk_variance", None)),
             "rep_usage_delta": metrics.get("stats/rep_usage_delta", None),
+            "alignment_ari": alignment.get("ARI", alignment.get("ari")),
+            "alignment_nmi": alignment.get("NMI", alignment.get("nmi")),
+            "one_shot_loss_before": one_shot.get("loss_before"),
+            "one_shot_loss_after": one_shot.get("loss_after"),
+            "one_shot_loss_delta": one_shot.get("loss_delta"),
         })
 
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)

@@ -80,13 +80,44 @@ def main() -> None:
                     "delta_G": float(dg),
                 })
 
+    betas = sorted({run["beta"] for run in runs})
+    lambdas = sorted({run["lambda"] for run in runs})
+    mus = sorted({run["mu"] for run in runs})
+    grids = []
+    for mu in mus:
+        grid_c = np.full((len(lambdas), len(betas)), np.nan)
+        grid_g = np.full((len(lambdas), len(betas)), np.nan)
+        for run in runs:
+            if run["mu"] != mu:
+                continue
+            li = lambdas.index(run["lambda"])
+            bi = betas.index(run["beta"])
+            grid_c[li, bi] = run["C"]
+            grid_g[li, bi] = run["G"]
+        grids.append({
+            "mu": mu,
+            "lambda_grid": lambdas,
+            "beta_grid": betas,
+            "complexity_grid": grid_c.tolist(),
+            "generalization_grid": grid_g.tolist(),
+        })
+
+    output = {
+        "runs": runs,
+        "transitions": transitions,
+        "thresholds": thresholds,
+        "quantile": args.q,
+        "grids": grids,
+    }
+    if len(mus) == 1 and grids:
+        output["beta_grid"] = betas
+        output["lambda_grid"] = lambdas
+        output["complexity_grid"] = grids[0]["complexity_grid"]
+        output["generalization_grid"] = grids[0]["generalization_grid"]
+
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
     with open(args.output_path, "w", encoding="utf-8") as f:
-        json.dump(
-            {"runs": runs, "transitions": transitions, "thresholds": thresholds, "quantile": args.q},
-            f,
-            indent=2,
-        )
+        json.dump(output, f, indent=2)
 
 
 if __name__ == "__main__":

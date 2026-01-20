@@ -32,8 +32,10 @@ def main() -> None:
         ] + overrides
         subprocess.run(cmd, check=True)
         config_path = os.path.join(run_dir, "config.json")
-        ckpt_path = None
-        if os.path.exists(config_path):
+        ckpt_path = os.path.join(run_dir, "checkpoint.pt")
+        if not os.path.exists(ckpt_path):
+            ckpt_path = None
+        if ckpt_path is None and os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
                 cfg_loaded = json.load(f)
             num_steps = int(cfg_loaded["train"]["num_steps"])
@@ -59,6 +61,24 @@ def main() -> None:
             f"eval.output_path={run_dir}/eval_metrics.json",
         ]
         subprocess.run(eval_cmd, check=True)
+
+        align_cmd = [
+            "python3",
+            "analysis/causal_state_alignment.py",
+            f"--config={config_path}",
+            f"--ckpt={ckpt_path}",
+            f"--output_path={run_dir}/alignment_metrics.json",
+        ]
+        subprocess.run(align_cmd, check=True)
+
+        one_shot_cmd = [
+            "python3",
+            "analysis/one_shot_test.py",
+            f"--config={config_path}",
+            f"--ckpt={ckpt_path}",
+            f"--output_path={run_dir}/one_shot_result.json",
+        ]
+        subprocess.run(one_shot_cmd, check=True)
 
     matrix_path = os.path.join(args.base_run_dir, "ablation_matrix.json")
     matrix_cmd = [

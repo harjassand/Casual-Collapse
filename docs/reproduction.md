@@ -2,10 +2,36 @@
 
 All experiments are configured via Hydra configs in `configs/`.
 
+## Install dependencies
+
+```
+python3 -m pip install -r requirements.txt
+```
+
+## Static checks
+
+```
+python3 -m compileall -q .
+```
+
 ## Smoke test
 
 ```
-python3 scripts/smoke_test.py
+python3 smoke_test.py
+```
+
+## Self-check (full end-to-end)
+
+```
+python3 tools/self_check.py
+```
+
+## Spurious correlation checks
+
+```
+python3 tools/check_spurious_correlation.py --env hmm --steps 200
+python3 tools/check_spurious_correlation.py --env object --steps 200
+python3 tools/check_spurious_correlation.py --env mechanism --steps 200
 ```
 
 ## Train (HMM baseline)
@@ -43,7 +69,7 @@ python3 training/train.py env=object model=default policy=active train.run_dir=r
 ## Evaluate a checkpoint
 
 ```
-python3 training/rollout_eval.py env=hmm model=hmm eval.ckpt_path=runs/hmm_baseline/model_1500.pt eval.output_path=runs/hmm_baseline/eval_metrics.json
+python3 training/rollout_eval.py env=hmm model=hmm eval.ckpt_path=runs/hmm_baseline/checkpoint.pt eval.output_path=runs/hmm_baseline/eval_metrics.json
 ```
 
 ## Sweep over (beta, lambda)
@@ -61,13 +87,13 @@ python3 analysis/phase_diagram.py --runs_dir runs/sweep --output_path analysis/p
 ## Causal-state alignment
 
 ```
-python3 analysis/causal_state_alignment.py --config runs/hmm_baseline/config.json --ckpt runs/hmm_baseline/model_1500.pt --output_path analysis/alignment_metrics.json
+python3 analysis/causal_state_alignment.py --config runs/hmm_baseline/config.json --ckpt runs/hmm_baseline/checkpoint.pt --output_path runs/hmm_baseline/alignment_metrics.json
 ```
 
 ## One-shot causality test (mechanism shift)
 
 ```
-python3 analysis/one_shot_test.py --config runs/mechanism_baseline/config.json --ckpt runs/mechanism_baseline/model_1500.pt --output_path analysis/one_shot_result.json
+python3 analysis/one_shot_test.py --config runs/mechanism_baseline/config.json --ckpt runs/mechanism_baseline/checkpoint.pt --output_path runs/mechanism_baseline/one_shot_result.json
 ```
 
 ## Ablation matrix table
@@ -83,3 +109,9 @@ python3 training/run_ablations.py --env hmm --model hmm --base_run_dir runs/abla
 ```
 
 This produces `runs/ablations/ablation_matrix.json` via `analysis/ablation_matrix.py`.
+
+## Validate a run directory
+
+```
+python3 tools/validate_run_dir.py runs/hmm_baseline
+```
