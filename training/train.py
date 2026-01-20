@@ -1,4 +1,5 @@
 import copy
+import json
 import os
 from typing import Any, Dict, List, Optional
 
@@ -32,6 +33,7 @@ def make_env(cfg: Dict[str, Any]):
             obs_dim=cfg["obs_dim"],
             spurious_noise=cfg["spurious_noise"],
             transition_noise=cfg["transition_noise"],
+            spurious_flip_on_odd=cfg.get("spurious_flip_on_odd", True),
         )
     if env_type == "object":
         return ObjectMicroWorldEnv(
@@ -40,6 +42,7 @@ def make_env(cfg: Dict[str, Any]):
             image_size=cfg["image_size"],
             spurious_noise=cfg["spurious_noise"],
             dt=cfg["dt"],
+            spurious_flip_on_odd=cfg.get("spurious_flip_on_odd", True),
         )
     if env_type == "mechanism":
         return MechanismShiftEnv(
@@ -116,6 +119,7 @@ def make_policy(cfg: Dict[str, Any], action_dim: int):
             num_candidates=cfg["num_candidates"],
             action_scale=cfg["action_scale"],
             cost_weight=cfg["cost_weight"],
+            top_k=cfg.get("top_k", 5),
         )
     return RandomPolicy(action_dim=action_dim, action_scale=cfg["action_scale"])
 
@@ -166,7 +170,9 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(cfg_dict["train"]["run_dir"], exist_ok=True)
     with open(os.path.join(cfg_dict["train"]["run_dir"], "config.json"), "w", encoding="utf-8") as f:
         f.write(OmegaConf.to_json(cfg))
-    operator_events_path = os.path.join(cfg_dict["train"]["run_dir"], "operator_events.jsonl")
+    config_snapshot_path = os.path.join(cfg_dict["train"]["run_dir"], "config_snapshot.yaml")
+    OmegaConf.save(cfg, config_snapshot_path)
+    operator_events: List[Dict[str, Any]] = []
     pred_history: List[float] = []
 
     stats = StatsBuffer(
@@ -179,6 +185,8 @@ def main(cfg: DictConfig) -> None:
     env_id_map = {int(e): i for i, e in enumerate(env_ids)}
     horizon = cfg_dict["train"]["horizon"]
     last_gain = 0.0
+    last_usage: Optional[np.ndarray] = None
+    last_policy_info: Dict[str, Any] = {}
 
     for step in range(cfg_dict["train"]["num_steps"]):
         env_id = int(np.random.choice(env_ids))
@@ -188,6 +196,7 @@ def main(cfg: DictConfig) -> None:
             predict_fn = build_predict_fn(model, ensemble, device, obs)
             action, info = policy.act(obs, predict_fn)
             last_gain = float(info.get("expected_gain", 0.0))
+            last_policy_info = info
             next_obs, _, _, info = env.step(action)
             next_obs = format_obs(next_obs)
             future_obs = [next_obs]
@@ -196,6 +205,7 @@ def main(cfg: DictConfig) -> None:
                 predict_fn = build_predict_fn(model, ensemble, device, next_obs)
                 action, info = policy.act(next_obs, predict_fn)
                 last_gain = float(info.get("expected_gain", last_gain))
+                last_policy_info = info
                 next_obs, _, _, info = env.step(action)
                 next_obs = format_obs(next_obs)
                 future_obs.append(next_obs)
@@ -240,6 +250,7 @@ def main(cfg: DictConfig) -> None:
         kl_term = (usage * (usage + 1e-8).log()).sum() + np.log(model_cfg["num_codes"])
         log_likelihood = -pred_loss
         vib_loss = kl_term - cfg_dict["loss"]["beta"] * log_likelihood
+        last_usage = usage.detach().cpu().numpy()
 
         # Invariance penalties
         risks = []
@@ -301,7 +312,11 @@ def main(cfg: DictConfig) -> None:
             plateau = False
             if len(pred_history) == cfg_dict["train"]["pred_plateau_window"]:
                 plateau = abs(pred_history[-1] - pred_history[0]) < cfg_dict["train"]["pred_plateau_threshold"]
-            if (perplexity < cfg_dict["train"]["perplexity_threshold"] or plateau) and model.use_quantizer:
+            if (
+                (perplexity < cfg_dict["train"]["perplexity_threshold"] or plateau)
+                and model.use_quantizer
+                and cfg_dict["train"]["enable_operator"]
+            ):
                 codebook = model.quantizer.codebook.detach().cpu().numpy()
                 ops = merge_split_operator(
                     stats,
@@ -318,18 +333,28 @@ def main(cfg: DictConfig) -> None:
                     "operator/merges": len(ops["merges"]),
                     "operator/splits": len(ops["splits"]),
                 })
-                with open(operator_events_path, "a", encoding="utf-8") as f:
-                    for merge in ops["merges"]:
-                        f.write(
-                            f'{{"step": {step}, "type": "merge", "code_i": {merge["code_i"]}, '
-                            f'"code_j": {merge["code_j"]}, "d_pred": {merge["d_pred"]}, '
-                            f'"d_inv": {merge["d_inv"]}}}\\n'
-                        )
-                    for split in ops["splits"]:
-                        f.write(
-                            f'{{"step": {step}, "type": "split", "code": {split["code"]}, '
-                            f'"new_code": {split["new_code"]}, "gain": {split["gain"]}}}\\n'
-                        )
+                for merge in ops["merges"]:
+                    event = {
+                        "step": step,
+                        "type": "merge",
+                        "perplexity": perplexity,
+                        "plateau_trigger": plateau,
+                        "delta_merge": cfg_dict["operator"]["delta_merge"],
+                        "delta_merge_inv": cfg_dict["operator"]["delta_merge_inv"],
+                    }
+                    event.update(merge)
+                    operator_events.append(event)
+                for split in ops["splits"]:
+                    event = {
+                        "step": step,
+                        "type": "split",
+                        "perplexity": perplexity,
+                        "plateau_trigger": plateau,
+                        "delta_split": cfg_dict["operator"]["delta_split"],
+                        "eps_split_gain": cfg_dict["operator"]["eps_split_gain"],
+                    }
+                    event.update(split)
+                    operator_events.append(event)
                 stats.reset()
 
         if step % cfg_dict["train"]["log_interval"] == 0:
@@ -355,9 +380,20 @@ def main(cfg: DictConfig) -> None:
                 preds_shuf = model.dynamics.rollout(z_shuf, actions, adj, horizon)
                 preds_shuf = model.decoder(preds_shuf)
                 rep_usage = float(torch.mean((preds_shuf - future_obs) ** 2).item()) - float(pred_loss.item())
+            adj_metrics = {}
+            if out["adj"] is not None:
+                adj = out["adj"]
+                edge_prob = adj.mean()
+                edge_entropy = -(edge_prob * (edge_prob + 1e-8).log() + (1 - edge_prob) * (1 - edge_prob + 1e-8).log())
+                adj_metrics = {
+                    "graph/edge_prob": float(edge_prob.item()),
+                    "graph/edge_entropy": float(edge_entropy.item()),
+                }
             logger.log(step, {
                 "loss/pred": float(pred_loss.item()),
                 "loss/vib": float(vib_loss.item()),
+                "loss/vib_kl": float(kl_term.item()),
+                "loss/vib_ll": float(log_likelihood.item()),
                 "loss/inv": float(inv_penalty.item()),
                 "loss/mod": float(mod_penalty.item()),
                 "loss/logic": float(logic_loss.item()),
@@ -370,8 +406,13 @@ def main(cfg: DictConfig) -> None:
                 "stats/rex": float(rex.item()) if isinstance(rex, torch.Tensor) else 0.0,
                 "stats/irm": float(irm.item()) if isinstance(irm, torch.Tensor) else 0.0,
                 "policy/expected_gain": last_gain,
+                "policy/score": float(last_policy_info.get("score", 0.0)),
+                "policy/cost": float(last_policy_info.get("cost", 0.0)),
+                "policy/action": last_policy_info.get("action", []),
+                "policy/top_scores": last_policy_info.get("top_scores", []),
                 **risk_metrics,
                 **code_metrics,
+                **adj_metrics,
             })
 
         if step % cfg_dict["train"]["checkpoint_interval"] == 0 and step > 0:
@@ -383,6 +424,31 @@ def main(cfg: DictConfig) -> None:
                 m.load_state_dict(copy.deepcopy(model.state_dict()))
 
     logger.close()
+
+    metrics_path = os.path.join(cfg_dict["train"]["run_dir"], "metrics.jsonl")
+    train_metrics_path = os.path.join(cfg_dict["train"]["run_dir"], "train_metrics.json")
+    if os.path.exists(metrics_path):
+        records = []
+        with open(metrics_path, "r", encoding="utf-8") as f:
+            for line in f:
+                records.append(json.loads(line))
+        with open(train_metrics_path, "w", encoding="utf-8") as f:
+            json.dump(records, f, indent=2)
+
+    if last_usage is not None:
+        code_usage_path = os.path.join(cfg_dict["train"]["run_dir"], "code_usage.json")
+        code_usage = {
+            "usage": last_usage.tolist(),
+            "perplexity": float(np.exp(-np.sum(last_usage * np.log(last_usage + 1e-8)))),
+            "entropy": float(-np.sum(last_usage * np.log(last_usage + 1e-8))),
+        }
+        with open(code_usage_path, "w", encoding="utf-8") as f:
+            json.dump(code_usage, f, indent=2)
+
+    if cfg_dict["train"]["enable_operator"]:
+        operator_path = os.path.join(cfg_dict["train"]["run_dir"], "operator_events.json")
+        with open(operator_path, "w", encoding="utf-8") as f:
+            json.dump(operator_events, f, indent=2)
 
 
 if __name__ == "__main__":

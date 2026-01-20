@@ -1,0 +1,3 @@
+name: operator_off
+overrides:
+  - train.enable_operator=false

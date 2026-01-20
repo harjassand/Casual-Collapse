@@ -2,11 +2,19 @@
 
 All experiments are configured via Hydra configs in `configs/`.
 
+## Smoke test
+
+```
+python3 scripts/smoke_test.py
+```
+
 ## Train (HMM baseline)
 
 ```
 python3 training/train.py env=hmm model=hmm train.run_dir=runs/hmm_baseline train.num_future_classes=4
 ```
+
+This writes `config_snapshot.yaml`, `train_metrics.json`, `code_usage.json`, and (if enabled) `operator_events.json` into the run directory.
 
 ## Train (Object micro-world)
 
@@ -53,13 +61,13 @@ python3 analysis/phase_diagram.py --runs_dir runs/sweep --output_path analysis/p
 ## Causal-state alignment
 
 ```
-python3 analysis/causal_state_alignment.py --config runs/hmm_baseline/config.json --ckpt runs/hmm_baseline/model_1500.pt --output_path analysis/causal_alignment.json
+python3 analysis/causal_state_alignment.py --config runs/hmm_baseline/config.json --ckpt runs/hmm_baseline/model_1500.pt --output_path analysis/alignment_metrics.json
 ```
 
 ## One-shot causality test (mechanism shift)
 
 ```
-python3 analysis/one_shot_test.py --config runs/mechanism_baseline/config.json --ckpt runs/mechanism_baseline/model_1500.pt --output_path analysis/one_shot.json
+python3 analysis/one_shot_test.py --config runs/mechanism_baseline/config.json --ckpt runs/mechanism_baseline/model_1500.pt --output_path analysis/one_shot_result.json
 ```
 
 ## Ablation matrix table
@@ -73,3 +81,5 @@ python3 analysis/ablation_matrix.py --runs_dir runs --output_path analysis/ablat
 ```
 python3 training/run_ablations.py --env hmm --model hmm --base_run_dir runs/ablations
 ```
+
+This produces `runs/ablations/ablation_matrix.json` via `analysis/ablation_matrix.py`.

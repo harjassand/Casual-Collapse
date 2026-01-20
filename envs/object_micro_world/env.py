@@ -13,17 +13,23 @@ class ObjectMicroWorldEnv(BaseEnv):
         image_size: int = 32,
         spurious_noise: float = 0.1,
         dt: float = 0.1,
+        spurious_flip_on_odd: bool = True,
     ) -> None:
         self.num_objects = num_objects
         self.obs_mode = obs_mode
         self.image_size = image_size
         self.spurious_noise = spurious_noise
         self.dt = dt
+        self.spurious_flip_on_odd = spurious_flip_on_odd
         self.rng = np.random.default_rng()
         self.env_id = 0
         self.state = None
         self.background = 0.0
         self.intervention: Dict[str, Any] = {}
+        self.intervention_active = False
+        self.t = 0
+        self.spurious_key = "background"
+        self.causal_key = "objects"
 
     def reset(self, seed: Optional[int] = None, env_id: Optional[int] = None) -> np.ndarray:
         if seed is not None:
@@ -36,14 +42,29 @@ class ObjectMicroWorldEnv(BaseEnv):
         self.state = {"pos": positions, "vel": velocities, "color": colors}
         self.background = float(self._background_from_event())
         self.intervention = {}
+        self.intervention_active = False
+        self.t = 0
         return self._observe()
 
     def do_intervention(self, spec: Dict[str, Any]) -> None:
         # Example specs: {"set_pos": {"obj": 0, "value": [0.5, 0.5]}},
         # {"set_vel": {"obj": 1, "value": [0.0, 0.3]}}, {"set_background": 1.0}
+        spec = dict(spec)
+        duration = spec.get("duration")
+        if "type" in spec:
+            if spec["type"] == "set_pos":
+                spec = {"set_pos": spec.get("value", {})}
+            elif spec["type"] == "set_vel":
+                spec = {"set_vel": spec.get("value", {})}
+            elif spec["type"] == "set_background":
+                spec = {"set_background": spec.get("value", 0.0)}
+            if duration is not None:
+                spec["duration"] = duration
         self.intervention = spec
+        self.intervention_active = bool(spec)
 
     def step(self, action: Optional[np.ndarray]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+        self.t += 1
         if self.intervention.get("set_pos"):
             obj = int(self.intervention["set_pos"]["obj"])
             self.state["pos"][obj] = np.array(self.intervention["set_pos"]["value"], dtype=np.float32)
@@ -67,6 +88,7 @@ class ObjectMicroWorldEnv(BaseEnv):
         reward = 0.0
         done = False
         info = {
+            "t": self.t,
             "latent_state": {
                 "pos": self.state["pos"].copy(),
                 "vel": self.state["vel"].copy(),
@@ -75,10 +97,20 @@ class ObjectMicroWorldEnv(BaseEnv):
             "env_id": self.env_id,
             "background": self.background,
             "event": int(self._event_label()),
-            "intervention": self.intervention,
+            "spurious_key": self.spurious_key,
+            "spurious_value": float(self.background),
+            "causal_key": self.causal_key,
+            "causal_value": {
+                "pos": self.state["pos"].copy(),
+                "vel": self.state["vel"].copy(),
+                "color": self.state["color"].copy(),
+            },
+            "intervention_active": self.intervention_active,
+            "intervention_spec": self.intervention if self.intervention_active else {},
         }
         if self.intervention.get("duration", 0) == 1:
             self.intervention = {}
+            self.intervention_active = False
         return obs, reward, done, info
 
     def _handle_bounds(self) -> None:
@@ -106,7 +138,7 @@ class ObjectMicroWorldEnv(BaseEnv):
         spur = int(event)
         if self.rng.random() < self.spurious_noise:
             spur ^= 1
-        if self.env_id % 2 == 1:
+        if self.spurious_flip_on_odd and self.env_id % 2 == 1:
             spur = 1 - spur
         return float(spur)
 
@@ -145,3 +177,24 @@ class ObjectMicroWorldEnv(BaseEnv):
                     py = np.clip(cy + dy, 0, size - 1)
                     image[py, px] = color
         return image.transpose(2, 0, 1)
+
+    def get_ground_truth(self) -> Dict[str, Any]:
+        return {
+            "t": self.t,
+            "env_id": self.env_id,
+            "latent_state": {
+                "pos": self.state["pos"].copy(),
+                "vel": self.state["vel"].copy(),
+                "color": self.state["color"].copy(),
+            },
+            "spurious_key": self.spurious_key,
+            "spurious_value": float(self.background),
+            "causal_key": self.causal_key,
+            "causal_value": {
+                "pos": self.state["pos"].copy(),
+                "vel": self.state["vel"].copy(),
+                "color": self.state["color"].copy(),
+            },
+            "intervention_active": self.intervention_active,
+            "intervention_spec": self.intervention if self.intervention_active else {},
+        }

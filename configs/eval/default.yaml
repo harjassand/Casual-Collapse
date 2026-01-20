@@ -4,10 +4,10 @@ steps: 200
 active_code_threshold: 0.01
 save_rollouts: false
 rollouts_path: runs/default/rollouts.npz
-interventions:
-  - {set_spurious: 0, duration: 1}
-  - {set_spurious: 1, duration: 1}
+eval_seed: 123
+interventions: []
 alignment_samples: 200
 alignment_rollouts: 20
 alignment_clusters: 4
+alignment_seed: 123
 one_shot_lr: 1.0e-2

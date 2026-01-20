@@ -55,6 +55,7 @@ def main() -> None:
         grouped.setdefault(key, []).append(run)
 
     transitions = []
+    thresholds = []
     for key, items in grouped.items():
         items = sorted(items, key=lambda x: x["beta"])
         deltas_c = [items[i + 1]["C"] - items[i]["C"] for i in range(len(items) - 1)]
@@ -63,6 +64,12 @@ def main() -> None:
             continue
         thresh_c = np.quantile(np.abs(deltas_c), 1 - args.q)
         thresh_g = np.quantile(np.abs(deltas_g), 1 - args.q)
+        thresholds.append({
+            "lambda": key[0],
+            "mu": key[1],
+            "threshold_c": float(thresh_c),
+            "threshold_g": float(thresh_g),
+        })
         for i, (dc, dg) in enumerate(zip(deltas_c, deltas_g)):
             if abs(dc) >= thresh_c and abs(dg) >= thresh_g:
                 transitions.append({
@@ -75,7 +82,11 @@ def main() -> None:
 
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
     with open(args.output_path, "w", encoding="utf-8") as f:
-        json.dump({"runs": runs, "transitions": transitions}, f, indent=2)
+        json.dump(
+            {"runs": runs, "transitions": transitions, "thresholds": thresholds, "quantile": args.q},
+            f,
+            indent=2,
+        )
 
 
 if __name__ == "__main__":

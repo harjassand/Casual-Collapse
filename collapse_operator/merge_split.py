@@ -42,7 +42,14 @@ def merge_split_operator(
                 pe_j = stats.distribution_env(e, cj, num_classes)
                 d_inv = max(d_inv, js_divergence(pe_i, pe_j))
             if d_pred <= delta_merge and d_inv <= delta_merge_inv:
-                merges.append({"code_i": ci, "code_j": cj, "d_pred": d_pred, "d_inv": d_inv})
+                merges.append({
+                    "code_i": ci,
+                    "code_j": cj,
+                    "d_pred": float(d_pred),
+                    "d_inv": float(d_inv),
+                    "count_i": int(stats.counts[ci]),
+                    "count_j": int(stats.counts[cj]),
+                })
 
     # Apply merges (greedy)
     merged_codes = set()
@@ -59,6 +66,8 @@ def merge_split_operator(
         codebook[ci] = weight_i * codebook[ci] + weight_j * codebook[cj]
         # free capacity by reinitializing cj
         codebook[cj] = np.random.normal(0.0, 1.0, size=codebook[cj].shape)
+        merge["count_after_i"] = int(total)
+        merge["count_after_j"] = 0
         merged_codes.update([ci, cj])
 
     # Split candidates
@@ -72,6 +81,8 @@ def merge_split_operator(
             continue
         kmeans = KMeans(n_clusters=2, n_init=5, random_state=0)
         cluster_ids = kmeans.fit_predict(embeddings)
+        cluster_a = int(np.sum(cluster_ids == 0))
+        cluster_b = int(np.sum(cluster_ids == 1))
         # compute NLL gain using actual future labels per cluster
         counts_before = np.zeros(num_classes, dtype=np.float64)
         for lbl in stats.code_labels(c):
@@ -99,6 +110,14 @@ def merge_split_operator(
                 continue
             codebook[c] = kmeans.cluster_centers_[0]
             codebook[free_code] = kmeans.cluster_centers_[1]
-            splits.append({"code": c, "new_code": free_code, "gain": float(gain)})
+            splits.append({
+                "code": c,
+                "new_code": free_code,
+                "gain": float(gain),
+                "entropy": float(entropy),
+                "count_before": int(stats.counts[c]),
+                "count_after_code": cluster_a,
+                "count_after_new": cluster_b,
+            })
 
     return {"merges": merges, "splits": splits}

@@ -16,3 +16,7 @@ class BaseEnv(ABC):
     @abstractmethod
     def do_intervention(self, spec: Dict[str, Any]) -> None:
         raise NotImplementedError
+
+    @abstractmethod
+    def get_ground_truth(self) -> Dict[str, Any]:
+        raise NotImplementedError

@@ -1,6 +1,8 @@
 import argparse
 import glob
 import os
+import glob
+import json
 import subprocess
 import yaml
 
@@ -29,15 +31,43 @@ def main() -> None:
             f"train.run_dir={run_dir}",
         ] + overrides
         subprocess.run(cmd, check=True)
+        config_path = os.path.join(run_dir, "config.json")
+        ckpt_path = None
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg_loaded = json.load(f)
+            num_steps = int(cfg_loaded["train"]["num_steps"])
+            interval = int(cfg_loaded["train"]["checkpoint_interval"])
+            last_step = num_steps - (num_steps % interval)
+            if last_step == 0:
+                last_step = interval
+            candidate = os.path.join(run_dir, f"model_{last_step}.pt")
+            if os.path.exists(candidate):
+                ckpt_path = candidate
+        if ckpt_path is None:
+            checkpoints = glob.glob(os.path.join(run_dir, "model_*.pt"))
+            if checkpoints:
+                ckpt_path = sorted(checkpoints)[-1]
+        if ckpt_path is None:
+            raise FileNotFoundError(f"No checkpoint found in {run_dir}")
         eval_cmd = [
             "python3",
             "training/rollout_eval.py",
             f"env={args.env}",
             f"model={args.model}",
-            f"eval.ckpt_path={run_dir}/model_1500.pt",
+            f"eval.ckpt_path={ckpt_path}",
             f"eval.output_path={run_dir}/eval_metrics.json",
         ]
         subprocess.run(eval_cmd, check=True)
+
+    matrix_path = os.path.join(args.base_run_dir, "ablation_matrix.json")
+    matrix_cmd = [
+        "python3",
+        "analysis/ablation_matrix.py",
+        f"--runs_dir={args.base_run_dir}",
+        f"--output_path={matrix_path}",
+    ]
+    subprocess.run(matrix_cmd, check=True)
 
 
 if __name__ == "__main__":

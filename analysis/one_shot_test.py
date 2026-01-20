@@ -19,7 +19,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--ckpt", type=str, required=True)
-    parser.add_argument("--output_path", type=str, default="analysis/one_shot.json")
+    parser.add_argument("--output_path", type=str, default="analysis/one_shot_result.json")
     args = parser.parse_args()
 
     with open(args.config, "r", encoding="utf-8") as f:
@@ -53,6 +53,7 @@ def main() -> None:
         out = model(obs_t, None, horizon=1)
         pred = out["preds"][:, 0]
         loss_before = torch.mean((pred - next_t) ** 2).item()
+        pred_before = pred.cpu().numpy().tolist()
 
     # One-step update on dynamics to fit intervention
     model.train()
@@ -69,12 +70,20 @@ def main() -> None:
         out = model(obs_t, None, horizon=1)
         pred = out["preds"][:, 0]
         loss_after = torch.mean((pred - next_t) ** 2).item()
+        pred_after = pred.cpu().numpy().tolist()
 
     result = {
         "intervention": {"set_vel": {"obj": 0, "value": 1.0}},
         "targeted_mechanism": "collision_elasticity",
+        "expected_change": "velocity intervention reveals collision elasticity via altered post-collision velocities",
+        "seed": int(cfg["seed"]),
+        "env_id": int(env_id),
         "loss_before": loss_before,
         "loss_after": loss_after,
+        "loss_delta": loss_before - loss_after,
+        "pred_before": pred_before,
+        "pred_after": pred_after,
+        "true_next": next_obs.tolist(),
     }
 
     with open(args.output_path, "w", encoding="utf-8") as f:

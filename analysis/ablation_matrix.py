@@ -29,9 +29,17 @@ def main() -> None:
             "use_rex": cfg["loss"]["use_rex"],
             "modularity": cfg["loss"]["modularity"],
             "active": cfg["policy"]["type"] == "active",
+            "operator": cfg["train"].get("enable_operator", True),
+            "ib": cfg["loss"]["beta"] > 0.0,
             "in_mse": metrics.get("in/mse", None),
             "ood_mse": metrics.get("ood/mse", None),
             "interventional_mse": metrics.get("interventional/mse", None),
+            "in_perplexity": metrics.get("in/perplexity", None),
+            "ood_perplexity": metrics.get("ood/perplexity", None),
+            "in_active_codes": metrics.get("in/active_codes", None),
+            "ood_active_codes": metrics.get("ood/active_codes", None),
+            "risk_variance": metrics.get("invariance/risk_variance", None),
+            "rep_usage_delta": metrics.get("stats/rep_usage_delta", None),
         })
 
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)

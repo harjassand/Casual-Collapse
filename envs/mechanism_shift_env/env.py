@@ -19,6 +19,10 @@ class MechanismShiftEnv(BaseEnv):
         self.env_id = 0
         self.state = None
         self.intervention: Dict[str, Any] = {}
+        self.intervention_active = False
+        self.t = 0
+        self.spurious_key = "none"
+        self.causal_key = "elasticity"
 
     def reset(self, seed: Optional[int] = None, env_id: Optional[int] = None) -> np.ndarray:
         if seed is not None:
@@ -29,12 +33,25 @@ class MechanismShiftEnv(BaseEnv):
         velocities = self.rng.normal(0.0, 0.2, size=(2,)).astype(np.float32)
         self.state = {"pos": positions, "vel": velocities}
         self.intervention = {}
+        self.intervention_active = False
+        self.t = 0
         return self._observe()
 
     def do_intervention(self, spec: Dict[str, Any]) -> None:
+        spec = dict(spec)
+        duration = spec.get("duration")
+        if "type" in spec:
+            if spec["type"] == "set_pos":
+                spec = {"set_pos": spec.get("value", {})}
+            elif spec["type"] == "set_vel":
+                spec = {"set_vel": spec.get("value", {})}
+            if duration is not None:
+                spec["duration"] = duration
         self.intervention = spec
+        self.intervention_active = bool(spec)
 
     def step(self, action: Optional[np.ndarray]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+        self.t += 1
         if self.intervention.get("set_pos"):
             idx = int(self.intervention["set_pos"]["obj"])
             self.state["pos"][idx] = float(self.intervention["set_pos"]["value"])
@@ -54,16 +71,23 @@ class MechanismShiftEnv(BaseEnv):
         reward = 0.0
         done = False
         info = {
+            "t": self.t,
             "latent_state": {
                 "pos": self.state["pos"].copy(),
                 "vel": self.state["vel"].copy(),
             },
             "env_id": self.env_id,
             "elasticity": self._elasticity(),
-            "intervention": self.intervention,
+            "spurious_key": self.spurious_key,
+            "spurious_value": 0.0,
+            "causal_key": self.causal_key,
+            "causal_value": float(self._elasticity()),
+            "intervention_active": self.intervention_active,
+            "intervention_spec": self.intervention if self.intervention_active else {},
         }
         if self.intervention.get("duration", 0) == 1:
             self.intervention = {}
+            self.intervention_active = False
         return obs, reward, done, info
 
     def _elasticity(self) -> float:
@@ -90,3 +114,19 @@ class MechanismShiftEnv(BaseEnv):
 
     def _observe(self) -> np.ndarray:
         return np.concatenate([self.state["pos"], self.state["vel"]], axis=0).astype(np.float32)
+
+    def get_ground_truth(self) -> Dict[str, Any]:
+        return {
+            "t": self.t,
+            "env_id": self.env_id,
+            "latent_state": {
+                "pos": self.state["pos"].copy(),
+                "vel": self.state["vel"].copy(),
+            },
+            "spurious_key": self.spurious_key,
+            "spurious_value": 0.0,
+            "causal_key": self.causal_key,
+            "causal_value": float(self._elasticity()),
+            "intervention_active": self.intervention_active,
+            "intervention_spec": self.intervention if self.intervention_active else {},
+        }

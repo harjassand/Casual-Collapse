@@ -13,16 +13,23 @@ class HMMCausalEnv(BaseEnv):
         obs_dim: Optional[int] = None,
         spurious_noise: float = 0.1,
         transition_noise: float = 0.05,
+        spurious_flip_on_odd: bool = True,
     ) -> None:
         self.num_states = num_states
         self.num_actions = num_actions
         self.obs_dim = obs_dim or (num_states + 1)
         self.spurious_noise = spurious_noise
         self.transition_noise = transition_noise
+        self.spurious_flip_on_odd = spurious_flip_on_odd
         self.rng = np.random.default_rng()
         self.env_id = 0
         self.latent_state = 0
         self.intervention: Dict[str, Any] = {}
+        self.intervention_active = False
+        self.t = 0
+        self.spurious_key = "spurious_bit"
+        self.causal_key = "latent_state"
+        self.spurious_value = 0
         self.transition = self._init_transition()
 
     def _init_transition(self) -> np.ndarray:
@@ -39,13 +46,26 @@ class HMMCausalEnv(BaseEnv):
             self.env_id = env_id
         self.latent_state = int(self.rng.integers(self.num_states))
         self.intervention = {}
+        self.intervention_active = False
+        self.t = 0
         return self._observe()
 
     def do_intervention(self, spec: Dict[str, Any]) -> None:
         # Example specs: {"set_latent": 2}, {"set_spurious": 1}, {"duration": 1}
+        spec = dict(spec)
+        duration = spec.get("duration")
+        if "type" in spec:
+            if spec["type"] in ("set_z", "set_latent"):
+                spec = {"set_latent": spec.get("value", spec.get("latent", 0))}
+            elif spec["type"] in ("set_spurious", "set_s"):
+                spec = {"set_spurious": spec.get("value", 0)}
+            if duration is not None:
+                spec["duration"] = duration
         self.intervention = spec
+        self.intervention_active = bool(spec)
 
     def step(self, action: Optional[np.ndarray]) -> Tuple[np.ndarray, float, bool, Dict[str, Any]]:
+        self.t += 1
         if action is None:
             action_idx = 0
         elif isinstance(action, np.ndarray):
@@ -64,13 +84,19 @@ class HMMCausalEnv(BaseEnv):
         reward = 0.0
         done = False
         info = {
+            "t": self.t,
             "latent_state": self.latent_state,
             "env_id": self.env_id,
-            "spurious": obs[-1],
-            "intervention": self.intervention,
+            "spurious_key": self.spurious_key,
+            "spurious_value": int(self.spurious_value),
+            "causal_key": self.causal_key,
+            "causal_value": int(self.latent_state),
+            "intervention_active": self.intervention_active,
+            "intervention_spec": self.intervention if self.intervention_active else {},
         }
         if self.intervention.get("duration", 0) == 1:
             self.intervention = {}
+            self.intervention_active = False
         return obs, reward, done, info
 
     def _observe(self) -> np.ndarray:
@@ -82,10 +108,11 @@ class HMMCausalEnv(BaseEnv):
         spur = int(self.latent_state % 2)
         if self.rng.random() < self.spurious_noise:
             spur ^= 1
-        if self.env_id % 2 == 1:
+        if self.spurious_flip_on_odd and self.env_id % 2 == 1:
             spur = 1 - spur
         if "set_spurious" in self.intervention:
             spur = int(self.intervention["set_spurious"])
+        self.spurious_value = spur
 
         obs = np.zeros(self.obs_dim, dtype=np.float32)
         dims = min(self.num_states, self.obs_dim - 1)
@@ -95,3 +122,16 @@ class HMMCausalEnv(BaseEnv):
             extra = self.rng.normal(0.0, 0.1, size=(self.obs_dim - self.num_states - 1,)).astype(np.float32)
             obs[self.num_states:-1] = extra
         return obs
+
+    def get_ground_truth(self) -> Dict[str, Any]:
+        return {
+            "t": self.t,
+            "env_id": self.env_id,
+            "latent_state": int(self.latent_state),
+            "spurious_key": self.spurious_key,
+            "spurious_value": int(self.spurious_value),
+            "causal_key": self.causal_key,
+            "causal_value": int(self.latent_state),
+            "intervention_active": self.intervention_active,
+            "intervention_spec": self.intervention if self.intervention_active else {},
+        }

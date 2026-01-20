@@ -1,5 +1,7 @@
 import argparse
+import glob
 import itertools
+import json
 import os
 import subprocess
 
@@ -25,6 +27,32 @@ def main() -> None:
             f"loss.mu={mu}",
         ]
         subprocess.run(cmd, check=True)
+        config_path = os.path.join(run_dir, "config.json")
+        ckpt_path = None
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            num_steps = int(cfg["train"]["num_steps"])
+            interval = int(cfg["train"]["checkpoint_interval"])
+            last_step = num_steps - (num_steps % interval)
+            if last_step == 0:
+                last_step = interval
+            candidate = os.path.join(run_dir, f"model_{last_step}.pt")
+            if os.path.exists(candidate):
+                ckpt_path = candidate
+        if ckpt_path is None:
+            checkpoints = glob.glob(os.path.join(run_dir, "model_*.pt"))
+            if checkpoints:
+                ckpt_path = sorted(checkpoints)[-1]
+        if ckpt_path is None:
+            raise FileNotFoundError(f"No checkpoint found in {run_dir}")
+        eval_cmd = [
+            "python3",
+            "training/rollout_eval.py",
+            f"eval.ckpt_path={ckpt_path}",
+            f"eval.output_path={os.path.join(run_dir, 'eval_metrics.json')}",
+        ]
+        subprocess.run(eval_cmd, check=True)
 
 
 if __name__ == "__main__":

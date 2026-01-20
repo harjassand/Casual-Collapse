@@ -20,6 +20,7 @@ def make_env(cfg: Dict[str, Any]):
             obs_dim=cfg["obs_dim"],
             spurious_noise=cfg["spurious_noise"],
             transition_noise=cfg["transition_noise"],
+            spurious_flip_on_odd=cfg.get("spurious_flip_on_odd", True),
         )
     if env_type == "object":
         return ObjectMicroWorldEnv(
@@ -28,6 +29,7 @@ def make_env(cfg: Dict[str, Any]):
             image_size=cfg["image_size"],
             spurious_noise=cfg["spurious_noise"],
             dt=cfg["dt"],
+            spurious_flip_on_odd=cfg.get("spurious_flip_on_odd", True),
         )
     if env_type == "mechanism":
         return MechanismShiftEnv(
@@ -85,7 +87,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, required=True)
     parser.add_argument("--ckpt", type=str, required=True)
-    parser.add_argument("--output_path", type=str, default="analysis/causal_alignment.json")
+    parser.add_argument("--output_path", type=str, default="analysis/alignment_metrics.json")
     args = parser.parse_args()
 
     with open(args.config, "r", encoding="utf-8") as f:
@@ -100,13 +102,13 @@ def main() -> None:
     env_cfg = cfg["env"]
     env = make_env(env_cfg)
     env_id = env_cfg["train_env_ids"][0]
-    env.reset(seed=cfg["seed"], env_id=env_id)
+    env.reset(seed=cfg["eval"].get("alignment_seed", cfg["seed"]), env_id=env_id)
 
     histories = []
     labels = []
     codes = []
 
-    obs = env.reset(seed=cfg["seed"], env_id=env_id)
+    obs = env.reset(seed=cfg["eval"].get("alignment_seed", cfg["seed"]), env_id=env_id)
     obs = format_obs(obs)
     for _ in range(cfg["eval"]["alignment_samples"]):
         obs_t = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
@@ -152,11 +154,22 @@ def main() -> None:
     scores = clustering_scores(cluster_labels, np.array(codes))
     purity, inv_purity = purity_scores(cluster_labels, np.array(codes))
 
+    unique_clusters, cluster_counts = np.unique(cluster_labels, return_counts=True)
+    unique_codes, code_counts = np.unique(np.array(codes), return_counts=True)
     out = {
         "ari": scores["ari"],
         "nmi": scores["nmi"],
         "purity": purity,
         "inverse_purity": inv_purity,
+        "num_clusters": int(num_clusters),
+        "cluster_counts": {int(k): int(v) for k, v in zip(unique_clusters, cluster_counts)},
+        "code_counts": {int(k): int(v) for k, v in zip(unique_codes, code_counts)},
+        "alignment_samples": int(cfg["eval"]["alignment_samples"]),
+        "alignment_rollouts": int(cfg["eval"]["alignment_rollouts"]),
+        "horizon": int(cfg["train"]["horizon"]),
+        "env_id": int(env_id),
+        "seed": int(cfg["eval"].get("alignment_seed", cfg["seed"])),
+        "future_summary": "future_label",
     }
 
     with open(args.output_path, "w", encoding="utf-8") as f:
