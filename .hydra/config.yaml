@@ -1,10 +1,10 @@
 env:
-  type: object
-  num_objects: 3
-  obs_mode: structured
-  image_size: 32
+  type: hmm
+  num_states: 4
+  num_actions: 2
+  obs_dim: 6
   spurious_noise: 0.1
-  dt: 0.1
+  transition_noise: 0.05
   spurious_flip_on_odd: true
   prediction: label_ce
   train_env_ids:
@@ -19,32 +19,27 @@ env:
   - 2
   - 3
   interventions:
-  - set_pos:
-      obj: 0
-      value:
-      - 0.5
-      - 0.5
+  - set_latent: 0
     duration: 1
-  - set_background: 1.0
+  - set_spurious: 1
     duration: 1
 model:
   input_type: structured
   obs_dim: 6
-  num_slots: 3
+  num_slots: 1
   slot_dim: 16
-  num_codes: 16
-  repr_mode: continuous_only
-  label_dim: 2
+  num_codes: 8
+  repr_mode: discrete_only
+  label_dim: 4
   use_quantizer: true
   commitment_weight: 0.25
   vq_decay: 0.99
-  vq_use_ema: false
+  vq_use_ema: true
   vq_soft_temp: 1.0
   use_graph: false
-  graph_hidden: 64
   use_residual: true
   residual_dim: 16
-  action_dim: 2
+  action_dim: 0
   dyn_hidden: 128
   recon: false
   use_logic: false
@@ -58,7 +53,7 @@ train:
   horizon: 3
   log_interval: 50
   checkpoint_interval: 500
-  run_dir: runs/diagnostics/object/repr_continuous_only
+  run_dir: runs/util_sweep_hmm_label/mu_0.0_ent_0.0001_ema_1_dead_0_seed_2
   operator_interval: 200
   perplexity_threshold: 2.0
   active_code_threshold: 0.01
@@ -106,9 +101,9 @@ operator:
   delta_split: 0.7
   eps_split_gain: 0.01
 vq:
-  entropy_reg: 0.1
+  entropy_reg: 0.0001
   dead_code_reinit:
-    enabled: true
+    enabled: false
     min_usage: 0.01
     window_steps: 20
     strategy: sample_encoder
@@ -124,5 +119,5 @@ preset:
     steps: 30
     alignment_samples: 50
     alignment_rollouts: 5
-seed: 0
+seed: 2
 device: auto
