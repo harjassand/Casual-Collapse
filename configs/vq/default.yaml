@@ -1,0 +1,6 @@
+entropy_reg: 0.0
+dead_code_reinit:
+  enabled: false
+  min_usage: 0.01
+  window_steps: 20
+  strategy: sample_encoder

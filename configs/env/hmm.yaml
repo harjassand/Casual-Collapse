@@ -5,8 +5,10 @@ obs_dim: 6
 spurious_noise: 0.1
 transition_noise: 0.05
 spurious_flip_on_odd: true
+prediction: label_ce
 train_env_ids: [0, 2]
 test_env_ids: [1, 3]
+all_env_ids: [0, 1, 2, 3]
 interventions:
   - {set_latent: 0, duration: 1}
   - {set_spurious: 1, duration: 1}

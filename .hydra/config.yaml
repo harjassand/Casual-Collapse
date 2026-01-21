@@ -9,6 +9,11 @@ env:
   test_env_ids:
   - 1
   - 3
+  all_env_ids:
+  - 0
+  - 1
+  - 2
+  - 3
   interventions:
   - set_vel:
       obj: 0
@@ -23,7 +28,8 @@ model:
   use_quantizer: true
   commitment_weight: 0.25
   vq_decay: 0.99
-  vq_use_ema: true
+  vq_use_ema: false
+  vq_soft_temp: 1.0
   use_graph: false
   use_residual: true
   residual_dim: 16
@@ -52,6 +58,8 @@ train:
   degenerate_entropy_threshold: 0.1
   degenerate_pred_threshold: 0.5
   enable_operator: true
+  dead_code_threshold: 0.01
+  dead_code_patience: 0
 loss:
   beta: 1.0
   gamma: 1.0
@@ -61,14 +69,15 @@ loss:
   use_rex: true
   use_irm: false
   modularity: none
+  vq_entropy_reg: 0.0
 policy:
   type: random
   action_scale: 0.1
   ensemble_size: 1
 eval:
-  ckpt_path: runs/self_check_mechanism/checkpoint.pt
-  output_path: runs/self_check_mechanism/eval_metrics.json
-  steps: 30
+  ckpt_path: runs/sweep_mechanism_modularity/beta_1.0_lambda_1.0_mu_1.0/checkpoint.pt
+  output_path: runs/sweep_mechanism_modularity/beta_1.0_lambda_1.0_mu_1.0/eval_metrics.json
+  steps: 200
   active_code_threshold: 0.01
   save_rollouts: false
   rollouts_path: runs/default/rollouts.npz
@@ -84,4 +93,15 @@ operator:
   delta_merge_inv: 0.05
   delta_split: 0.7
   eps_split_gain: 0.01
+vq:
+  entropy_reg: 0.1
+  dead_code_reinit:
+    enabled: true
+    min_usage: 0.01
+    window_steps: 20
+    strategy: sample_encoder
+preset:
+  train: {}
+  eval: {}
 seed: 123
+device: auto

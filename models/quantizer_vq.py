@@ -13,6 +13,7 @@ class VectorQuantizer(nn.Module):
         decay: float = 0.99,
         eps: float = 1e-5,
         use_ema: bool = True,
+        soft_temp: float = 1.0,
     ) -> None:
         super().__init__()
         self.num_codes = num_codes
@@ -21,6 +22,7 @@ class VectorQuantizer(nn.Module):
         self.decay = decay
         self.eps = eps
         self.use_ema = use_ema
+        self.soft_temp = soft_temp
 
         codebook = torch.randn(num_codes, dim)
         if use_ema:
@@ -34,13 +36,18 @@ class VectorQuantizer(nn.Module):
         # z: [B, K, D]
         b, k, d = z.shape
         flat = z.reshape(-1, d)
+        codebook = self.codebook
+        if self.use_ema and self.training:
+            codebook = self.codebook.detach().clone()
         distances = (
             flat.pow(2).sum(dim=1, keepdim=True)
-            - 2 * flat @ self.codebook.t()
-            + self.codebook.pow(2).sum(dim=1, keepdim=True).t()
+            - 2 * flat @ codebook.t()
+            + codebook.pow(2).sum(dim=1, keepdim=True).t()
         )
         indices = torch.argmin(distances, dim=1)
-        quantized = self.codebook[indices].view(b, k, d)
+        logits = -distances / max(self.soft_temp, 1e-6)
+        probs = torch.softmax(logits, dim=1)
+        quantized = codebook[indices].view(b, k, d)
         if self.use_ema:
             quantized = quantized.detach()
 
@@ -63,6 +70,7 @@ class VectorQuantizer(nn.Module):
 
         counts = torch.bincount(indices, minlength=self.num_codes).float()
         usage = counts / counts.sum().clamp_min(1.0)
+        soft_usage = probs.mean(dim=0)
         perplexity = torch.exp(-(usage * (usage + 1e-8).log()).sum())
 
         stats = {
@@ -71,5 +79,6 @@ class VectorQuantizer(nn.Module):
             "commitment_loss": commitment_loss,
             "perplexity": perplexity,
             "usage": usage,
+            "soft_usage": soft_usage,
         }
         return quantized_st, loss, stats

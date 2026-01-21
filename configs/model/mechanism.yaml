@@ -3,10 +3,12 @@ obs_dim: 4
 num_slots: 1
 slot_dim: 16
 num_codes: 8
+repr_mode: multiscale
 use_quantizer: true
 commitment_weight: 0.25
 vq_decay: 0.99
 vq_use_ema: true
+vq_soft_temp: 1.0
 use_graph: false
 use_residual: true
 residual_dim: 16

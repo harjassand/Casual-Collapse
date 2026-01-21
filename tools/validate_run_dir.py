@@ -32,10 +32,11 @@ def check_eval_metrics(eval_metrics: Dict[str, Any], errors: List[str]) -> None:
     require("rep_usage_test" in eval_metrics, "eval_metrics missing rep_usage_test", errors)
     require("rollout_counts" in eval_metrics, "eval_metrics missing rollout_counts", errors)
     require("seeds" in eval_metrics, "eval_metrics missing seeds", errors)
+    require("env_sets" in eval_metrics, "eval_metrics missing env_sets", errors)
 
     if "complexity" in eval_metrics:
         comp = eval_metrics["complexity"]
-        for key in ["perplexity", "active_codes", "entropy_or_proxy"]:
+        for key in ["perplexity", "active_codes", "entropy_or_proxy", "codebook_size", "active_code_threshold"]:
             require(key in comp, f"complexity missing {key}", errors)
 
     if "interventional" in eval_metrics:
@@ -48,13 +49,18 @@ def check_eval_metrics(eval_metrics: Dict[str, Any], errors: List[str]) -> None:
 
     if "rep_usage_test" in eval_metrics:
         rep = eval_metrics["rep_usage_test"]
-        for key in ["metric", "value"]:
+        for key in ["metric", "mse_base", "mse_perturbed", "mse_delta", "mse_ratio"]:
             require(key in rep, f"rep_usage_test missing {key}", errors)
 
     if "per_env_risks" in eval_metrics:
         per_env = eval_metrics["per_env_risks"]
         require(isinstance(per_env, dict), "per_env_risks must be a dict", errors)
         require(len(per_env) > 0, "per_env_risks is empty", errors)
+
+    if "env_sets" in eval_metrics:
+        env_sets = eval_metrics["env_sets"]
+        for key in ["train_env_ids", "test_env_ids", "all_env_ids"]:
+            require(key in env_sets, f"env_sets missing {key}", errors)
 
 
 def check_alignment(alignment: Dict[str, Any], errors: List[str]) -> None:
@@ -92,10 +98,14 @@ def main() -> None:
         cfg = load_yaml(config_path)
         use_quantizer = cfg.get("model", {}).get("use_quantizer", True)
         enable_operator = cfg.get("train", {}).get("enable_operator", True)
+        dead_cfg = cfg.get("vq", {}).get("dead_code_reinit", {})
+        dead_enabled = bool(dead_cfg.get("enabled", False))
         if use_quantizer:
             require(os.path.exists(os.path.join(run_dir, "code_usage.json")), "missing code_usage.json", errors)
         if enable_operator:
             require(os.path.exists(os.path.join(run_dir, "operator_events.json")), "missing operator_events.json", errors)
+        if dead_enabled:
+            require(os.path.exists(os.path.join(run_dir, "vq_events.json")), "missing vq_events.json", errors)
 
     eval_path = os.path.join(run_dir, "eval_metrics.json")
     if os.path.exists(eval_path):

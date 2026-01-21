@@ -16,3 +16,5 @@ pred_plateau_threshold: 1e-4
 degenerate_entropy_threshold: 0.1
 degenerate_pred_threshold: 0.5
 enable_operator: true
+dead_code_threshold: 0.01
+dead_code_patience: 0

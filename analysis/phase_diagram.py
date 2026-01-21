@@ -29,16 +29,19 @@ def load_config(path: str) -> Dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--runs_dir", type=str, default="runs")
+    parser.add_argument("--base_run_dir", type=str, default="")
     parser.add_argument("--q", type=float, default=0.05)
     parser.add_argument("--output_path", type=str, default="analysis/phase_diagram.json")
     args = parser.parse_args()
 
+    runs_dir = args.base_run_dir or args.runs_dir
     runs = []
-    for name in os.listdir(args.runs_dir):
-        run_dir = os.path.join(args.runs_dir, name)
+    for name in os.listdir(runs_dir):
+        run_dir = os.path.join(runs_dir, name)
         metrics_path = os.path.join(run_dir, "metrics.jsonl")
         config_path = os.path.join(run_dir, "config.json")
         eval_path = os.path.join(run_dir, "eval_metrics.json")
+        align_path = os.path.join(run_dir, "alignment_metrics.json")
         if not os.path.exists(metrics_path) or not os.path.exists(config_path):
             continue
         cfg = load_config(config_path)
@@ -46,13 +49,22 @@ def main() -> None:
         lam = cfg["loss"]["lambda"]
         mu = cfg["loss"]["mu"]
         C = load_last_metric(metrics_path, "stats/entropy")
+        ari = float("nan")
+        nmi = float("nan")
+        if os.path.exists(align_path):
+            with open(align_path, "r", encoding="utf-8") as f:
+                align = json.load(f)
+            ari = float(align.get("ARI", float("nan")))
+            nmi = float(align.get("NMI", float("nan")))
         if os.path.exists(eval_path):
             with open(eval_path, "r", encoding="utf-8") as f:
                 eval_metrics = json.load(f)
-            G = eval_metrics.get("ood/mse", float("nan"))
+            G = eval_metrics.get("ood", {}).get("value")
+            if G is None:
+                G = eval_metrics.get("ood/mse", float("nan"))
         else:
             G = load_last_metric(metrics_path, "loss/pred")
-        runs.append({"beta": beta, "lambda": lam, "mu": mu, "C": C, "G": G})
+        runs.append({"beta": beta, "lambda": lam, "mu": mu, "C": C, "G": G, "ARI": ari, "NMI": nmi})
 
     grouped: Dict[Tuple[float, float], List[Dict]] = {}
     for run in runs:
@@ -92,6 +104,8 @@ def main() -> None:
     for mu in mus:
         grid_c = np.full((len(lambdas), len(betas)), np.nan)
         grid_g = np.full((len(lambdas), len(betas)), np.nan)
+        grid_ari = np.full((len(lambdas), len(betas)), np.nan)
+        grid_nmi = np.full((len(lambdas), len(betas)), np.nan)
         for run in runs:
             if run["mu"] != mu:
                 continue
@@ -99,12 +113,16 @@ def main() -> None:
             bi = betas.index(run["beta"])
             grid_c[li, bi] = run["C"]
             grid_g[li, bi] = run["G"]
+            grid_ari[li, bi] = run["ARI"]
+            grid_nmi[li, bi] = run["NMI"]
         grids.append({
             "mu": mu,
             "lambda_grid": lambdas,
             "beta_grid": betas,
             "complexity_grid": grid_c.tolist(),
             "generalization_grid": grid_g.tolist(),
+            "alignment_grid_ari": grid_ari.tolist(),
+            "alignment_grid_nmi": grid_nmi.tolist(),
         })
 
     output = {
@@ -113,12 +131,15 @@ def main() -> None:
         "thresholds": thresholds,
         "quantile": args.q,
         "grids": grids,
+        "alignment_metric": "NMI",
     }
     if len(mus) == 1 and grids:
         output["beta_grid"] = betas
         output["lambda_grid"] = lambdas
         output["complexity_grid"] = grids[0]["complexity_grid"]
         output["generalization_grid"] = grids[0]["generalization_grid"]
+        output["alignment_grid_ari"] = grids[0]["alignment_grid_ari"]
+        output["alignment_grid_nmi"] = grids[0]["alignment_grid_nmi"]
 
     os.makedirs(os.path.dirname(args.output_path), exist_ok=True)
     with open(args.output_path, "w", encoding="utf-8") as f:

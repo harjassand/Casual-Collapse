@@ -12,6 +12,21 @@ This document maps the project definitions to the concrete implementation in thi
   - Object micro-world: `T` is the binary event label (object-0 future boundary event).
   - Mechanism shift: `T` is a binary proximity label for the two objects.
 
+## Parameter map (authoritative)
+
+| Parameter | Meaning in code | Location |
+| --- | --- | --- |
+| `beta` | IB tradeoff in `L_vib` | `configs/loss/*.yaml` → `loss.beta` |
+| `lambda` | Invariance penalty weight | `configs/loss/*.yaml` → `loss.lambda` |
+| `mu` | Modularity/ICM penalty weight (cross-Jacobian or total correlation) | `configs/loss/*.yaml` → `loss.mu` |
+| `prediction` | Predictive loss type (`mse` or `label_ce`) | `configs/loss/*.yaml` or `configs/env/*.yaml` |
+| `vq.entropy_reg` | Usage entropy regularizer weight (adds `-H(p(c))`) | `configs/vq/*.yaml` → `vq.entropy_reg` |
+| `vq.dead_code_reinit.*` | Dead-code revival controls (min usage + window + strategy) | `configs/vq/*.yaml` → `vq.dead_code_reinit` |
+| `vq_use_ema` | VQ codebook EMA updates on/off | `configs/model/*.yaml` → `model.vq_use_ema` |
+| `vq_soft_temp` | Soft assignment temperature for usage stats | `configs/model/*.yaml` → `model.vq_soft_temp` |
+| `commitment_weight` | VQ commitment loss weight | `configs/model/*.yaml` → `model.commitment_weight` |
+| `repr_mode` | Representation mode (`discrete_only`, `continuous_only`, `multiscale`) | `configs/model/*.yaml` → `model.repr_mode` |
+
 ## Predictive Information Bottleneck
 
 Implemented in `losses/vib.py` and `training/train.py`:
@@ -21,7 +36,8 @@ Implemented in `losses/vib.py` and `training/train.py`:
     - `KL ≈ log(M) - H(C)` with `H(C)` estimated from usage counts per batch.
 - The training loop logs both the KL proxy and the predictive log-likelihood term separately.
 - Predictive term:
-  - `E[log p_theta(X_{>t} | S_t)]` approximated by negative MSE on multi-step predictions.
+  - For `prediction=mse`: negative MSE on multi-step predictions.
+  - For `prediction=label_ce` (HMM/object): negative cross-entropy on future labels.
 
 Combined VIB loss:
 
@@ -59,15 +75,15 @@ L = L_pred
   + L_vq
 ```
 
-Where `L_pred` is MSE on multi-step predictions and `L_vq` is the VQ-VAE codebook + commitment loss.
+Where `L_pred` is MSE or CE depending on `prediction`, and `L_vq` is the VQ-VAE codebook + commitment loss.
 
 ## Representation modes
 
-Configured via `use_quantizer` and `use_residual` in model configs:
+Configured via `model.repr_mode` (applied in train/eval):
 
-- Discrete-only: `use_quantizer: true`, `use_residual: false`
-- Continuous-only: `use_quantizer: false`
-- Multiscale: `use_quantizer: true`, `use_residual: true`
+- `discrete_only`: `use_quantizer: true`, `use_residual: false`
+- `continuous_only`: `use_quantizer: false`, `use_residual: false`
+- `multiscale`: `use_quantizer: true`, `use_residual: true`
 
 ## Causal Collapse Operator
 

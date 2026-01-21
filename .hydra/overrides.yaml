@@ -1,5 +1,11 @@
 - env=mechanism
 - model=mechanism
-- eval.ckpt_path=runs/self_check_mechanism/checkpoint.pt
-- eval.output_path=runs/self_check_mechanism/eval_metrics.json
-- eval.steps=30
+- preset=default
+- eval.ckpt_path=runs/sweep_mechanism_modularity/beta_1.0_lambda_1.0_mu_1.0/checkpoint.pt
+- eval.output_path=runs/sweep_mechanism_modularity/beta_1.0_lambda_1.0_mu_1.0/eval_metrics.json
+- vq.entropy_reg=0.1
+- vq.dead_code_reinit.enabled=true
+- vq.dead_code_reinit.min_usage=0.01
+- vq.dead_code_reinit.window_steps=20
+- vq.dead_code_reinit.strategy=sample_encoder
+- model.vq_use_ema=false

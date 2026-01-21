@@ -33,6 +33,19 @@ class ActiveInfoGainPolicy:
         self.rng = np.random.default_rng()
 
     def act(self, obs: np.ndarray, predict_fn: Callable[[np.ndarray], np.ndarray]) -> Tuple[np.ndarray, Dict[str, Any]]:
+        if self.action_dim == 0:
+            info = {
+                "expected_gain": 0.0,
+                "score": 0.0,
+                "cost": 0.0,
+                "action": [],
+                "candidate_scores": [],
+                "candidate_costs": [],
+                "top_scores": [],
+                "top_costs": [],
+                "top_actions": [],
+            }
+            return None, info
         actions = []
         scores = []
         costs = []

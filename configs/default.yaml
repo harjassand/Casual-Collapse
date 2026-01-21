@@ -6,9 +6,12 @@ defaults:
   - policy: random
   - eval: default
   - operator: default
+  - vq: default
+  - preset: default
   - _self_
 
 seed: 123
+device: auto
 
 hydra:
   run:

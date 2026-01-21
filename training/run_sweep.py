@@ -13,10 +13,15 @@ if ROOT not in sys.path:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--env", type=str, default="hmm")
+    parser.add_argument("--model", type=str, default="hmm")
     parser.add_argument("--betas", type=float, nargs="+", required=True)
     parser.add_argument("--lambdas", type=float, nargs="+", required=True)
     parser.add_argument("--mus", type=float, nargs="+", default=[0.0])
     parser.add_argument("--base_run_dir", type=str, default="runs/sweep")
+    parser.add_argument("--preset", type=str, default="default")
+    parser.add_argument("--overrides", type=str, nargs="*", default=[])
+    parser.add_argument("--with_alignment", action="store_true")
     args = parser.parse_args()
 
     os.makedirs(args.base_run_dir, exist_ok=True)
@@ -24,13 +29,16 @@ def main() -> None:
     for beta, lam, mu in itertools.product(args.betas, args.lambdas, args.mus):
         run_dir = os.path.join(args.base_run_dir, f"beta_{beta}_lambda_{lam}_mu_{mu}")
         cmd = [
-            "python3",
+            sys.executable,
             "training/train.py",
+            f"env={args.env}",
+            f"model={args.model}",
+            f"preset={args.preset}",
             f"train.run_dir={run_dir}",
             f"loss.beta={beta}",
             f"loss.lambda={lam}",
             f"loss.mu={mu}",
-        ]
+        ] + args.overrides
         subprocess.run(cmd, check=True)
         config_path = os.path.join(run_dir, "config.json")
         ckpt_path = os.path.join(run_dir, "checkpoint.pt")
@@ -54,12 +62,24 @@ def main() -> None:
         if ckpt_path is None:
             raise FileNotFoundError(f"No checkpoint found in {run_dir}")
         eval_cmd = [
-            "python3",
+            sys.executable,
             "training/rollout_eval.py",
+            f"env={args.env}",
+            f"model={args.model}",
+            f"preset={args.preset}",
             f"eval.ckpt_path={ckpt_path}",
             f"eval.output_path={os.path.join(run_dir, 'eval_metrics.json')}",
-        ]
+        ] + args.overrides
         subprocess.run(eval_cmd, check=True)
+        if args.with_alignment:
+            align_cmd = [
+                sys.executable,
+                "analysis/causal_state_alignment.py",
+                f"--config={config_path}",
+                f"--ckpt={ckpt_path}",
+                f"--output_path={os.path.join(run_dir, 'alignment_metrics.json')}",
+            ]
+            subprocess.run(align_cmd, check=True)
 
 
 if __name__ == "__main__":

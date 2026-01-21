@@ -7,6 +7,7 @@ use_quantizer: true
 commitment_weight: 0.25
 vq_decay: 0.99
 vq_use_ema: true
+vq_soft_temp: 1.0
 use_graph: false
 graph_hidden: 64
 use_residual: true

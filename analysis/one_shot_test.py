@@ -13,6 +13,7 @@ if ROOT not in sys.path:
 
 from envs import HMMCausalEnv, MechanismShiftEnv, ObjectMicroWorldEnv
 from models.causal_collapse_model import CausalCollapseModel
+from utils.device import resolve_device
 
 
 def format_obs(obs: np.ndarray) -> np.ndarray:
@@ -80,7 +81,7 @@ def main() -> None:
     with open(args.config, "r", encoding="utf-8") as f:
         cfg = json.load(f)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = resolve_device(cfg.get("device", "auto"))
     model = CausalCollapseModel(cfg["model"]).to(device)
     ckpt = torch.load(args.ckpt, map_location=device)
     model.load_state_dict(ckpt["model"])
