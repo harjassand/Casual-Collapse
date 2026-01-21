@@ -1,8 +1,12 @@
 env:
-  type: mechanism
-  elasticity_env0: 0.9
-  elasticity_env1: 0.2
+  type: object
+  num_objects: 3
+  obs_mode: structured
+  image_size: 32
+  spurious_noise: 0.1
   dt: 0.1
+  spurious_flip_on_odd: true
+  prediction: label_ce
   train_env_ids:
   - 0
   - 2
@@ -15,22 +19,29 @@ env:
   - 2
   - 3
   interventions:
-  - set_vel:
+  - set_pos:
       obj: 0
-      value: 0.8
+      value:
+      - 0.5
+      - 0.5
+    duration: 1
+  - set_background: 1.0
     duration: 1
 model:
   input_type: structured
-  obs_dim: 4
-  num_slots: 1
+  obs_dim: 6
+  num_slots: 3
   slot_dim: 16
-  num_codes: 8
+  num_codes: 16
+  repr_mode: continuous_only
+  label_dim: 2
   use_quantizer: true
   commitment_weight: 0.25
   vq_decay: 0.99
   vq_use_ema: false
   vq_soft_temp: 1.0
   use_graph: false
+  graph_hidden: 64
   use_residual: true
   residual_dim: 16
   action_dim: 2
@@ -47,7 +58,7 @@ train:
   horizon: 3
   log_interval: 50
   checkpoint_interval: 500
-  run_dir: runs/default
+  run_dir: runs/diagnostics/object/repr_continuous_only
   operator_interval: 200
   perplexity_threshold: 2.0
   active_code_threshold: 0.01
@@ -64,8 +75,9 @@ loss:
   beta: 1.0
   gamma: 1.0
   lambda: 1.0
-  mu: 0.1
+  mu: 0.0
   nu: 0.0
+  prediction: mse
   use_rex: true
   use_irm: false
   modularity: none
@@ -75,8 +87,8 @@ policy:
   action_scale: 0.1
   ensemble_size: 1
 eval:
-  ckpt_path: runs/sweep_mechanism_modularity/beta_1.0_lambda_1.0_mu_1.0/checkpoint.pt
-  output_path: runs/sweep_mechanism_modularity/beta_1.0_lambda_1.0_mu_1.0/eval_metrics.json
+  ckpt_path: runs/default/model_1500.pt
+  output_path: runs/default/eval_metrics.json
   steps: 200
   active_code_threshold: 0.01
   save_rollouts: false
@@ -101,7 +113,16 @@ vq:
     window_steps: 20
     strategy: sample_encoder
 preset:
-  train: {}
-  eval: {}
-seed: 123
+  train:
+    num_steps: 300
+    checkpoint_interval: 100
+    log_interval: 50
+    buffer_size: 500
+    batch_size: 32
+    horizon: 2
+  eval:
+    steps: 30
+    alignment_samples: 50
+    alignment_rollouts: 5
+seed: 0
 device: auto

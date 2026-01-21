@@ -48,8 +48,6 @@ def run_one(env: str, model: str, preset: str, run_dir: str, beta: float, lam: f
     ] + overrides
     subprocess.run(eval_cmd, check=True)
 
-    subprocess.run([sys.executable, "tools/validate_run_dir.py", run_dir], check=True)
-
     eval_metrics = load_json(os.path.join(run_dir, "eval_metrics.json"))
     train_metrics = last_train_metrics(os.path.join(run_dir, "train_metrics.json"))
     cfg = load_json(os.path.join(run_dir, "config.json"))

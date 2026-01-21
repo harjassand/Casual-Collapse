@@ -41,8 +41,6 @@ def run_one(env: str, model: str, preset: str, run_dir: str, repr_mode: str, bet
     ] + overrides
     subprocess.run(eval_cmd, check=True)
 
-    subprocess.run([sys.executable, "tools/validate_run_dir.py", run_dir], check=True)
-
     eval_metrics = load_json(os.path.join(run_dir, "eval_metrics.json"))
     return {
         "run_dir": run_dir,

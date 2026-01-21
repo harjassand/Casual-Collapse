@@ -27,6 +27,7 @@ def main() -> None:
     parser.add_argument("--dead_min_usage", type=float, default=0.01)
     parser.add_argument("--dead_window", type=int, default=20)
     parser.add_argument("--dead_strategy", type=str, default="sample_encoder")
+    parser.add_argument("--repr_mode", type=str, default="")
     args = parser.parse_args()
 
     os.makedirs(args.base_run_dir, exist_ok=True)
@@ -53,23 +54,27 @@ def main() -> None:
             f"model.vq_use_ema={ema_bool}",
             f"seed={seed}",
         ]
+        if args.repr_mode:
+            overrides.append(f"model.repr_mode={args.repr_mode}")
         eval_path = os.path.join(run_dir, "eval_metrics.json")
         if not os.path.exists(eval_path):
             train_cmd = [sys.executable, "training/train.py"] + overrides
             subprocess.run(train_cmd, check=True)
 
             ckpt_path = os.path.join(run_dir, "checkpoint.pt")
-            eval_cmd = [
-                sys.executable,
-                "training/rollout_eval.py",
-                f"env={args.env}",
-                f"model={args.model}",
-                f"preset={args.preset}",
-                f"eval.ckpt_path={ckpt_path}",
-                f"eval.output_path={eval_path}",
-                f"model.vq_use_ema={ema_bool}",
-                f"vq.entropy_reg={ent}",
-            ]
+        eval_cmd = [
+            sys.executable,
+            "training/rollout_eval.py",
+            f"env={args.env}",
+            f"model={args.model}",
+            f"preset={args.preset}",
+            f"eval.ckpt_path={ckpt_path}",
+            f"eval.output_path={eval_path}",
+            f"model.vq_use_ema={ema_bool}",
+            f"vq.entropy_reg={ent}",
+        ]
+        if args.repr_mode:
+            eval_cmd.append(f"model.repr_mode={args.repr_mode}")
             subprocess.run(eval_cmd, check=True)
 
         with open(eval_path, "r", encoding="utf-8") as f:
